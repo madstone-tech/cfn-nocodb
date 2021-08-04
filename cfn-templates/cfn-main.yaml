@@ -231,7 +231,7 @@ Resources:
           - ","
           - - !GetAtt "VPC.Outputs.SubnetAPrivate"
             - !GetAtt "VPC.Outputs.SubnetBPrivate"
-        SecurityGroup: !GetAtt SecurityGroups.Outputs.MariaDBSG
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.PostgresDBSG
         ScalingConfigurationMinCapacity: !Ref ScalingConfigurationMinCapacity
         ScalingConfigurationMaxCapacity: !Ref ScalingConfigurationMaxCapacity
         ScalingConfigurationSecondsUntilAutoPause: !Ref ScalingConfigurationSecondsUntilAutoPause
