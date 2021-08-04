@@ -1,0 +1,18 @@
+{
+    "Parameters": {
+        "EnvironmentName": "nocodb",
+        "Route53ZoneName": "REPLACE",
+        "HostedZoneId": "REPLACE",
+        "ECSDomain": "REPLACE",
+        "SSHKeyPair": "REPLACE",
+        "DBUsernameParam": "nocodbuser",
+        "DBBackupRetentionPeriodParam": "7",
+        "NonceSalt": "REPLACE",
+        "DBName": "nocodb",
+        "ImageTag": "latest"
+    },
+    "Tags": {
+        "Environment": "NocoDB",
+        "Application": "nocodb"
+    }
+}
