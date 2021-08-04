@@ -1,0 +1,325 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Main Cloudformation Template to Deploy Nocodb in Containers
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Unique name for the environment
+
+  Route53ZoneName:
+    Type: String
+    Description: Name of your Route53 ZoneName
+
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Pick the HostedZoneId of the Route53 Zone Name
+
+  ECSDomain:
+    Type: String
+    Description: base domain of the app i.e. chat.domain.com
+
+  SSHKeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+
+  DBUsernameParam:
+    Default: nocodbuser
+    Description: The database admin account username
+    Type: String
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+
+  DBBackupRetentionPeriodParam:
+    Description: "The number of days to keep snapshots of the database."
+    Type: Number
+    Default: 30
+
+  DBName:
+    Description: Name of the database
+    Type: String
+    Default: nocodb
+
+  ImageTag:
+    Description: Tag to pull for nocodb container
+    Type: String
+    Default: latest
+
+  RetentionDays:
+    Type: Number
+    Description: how many to keep logs in Cloudwatch
+    Default: 7
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1827
+      - 3653
+
+  ScalingConfigurationMaxCapacity:
+    Type: Number
+    Default: 4
+    AllowedValues:
+      - 2
+      - 4
+      - 8
+      - 16
+      - 32
+      - 64
+
+  ScalingConfigurationMinCapacity:
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 32
+      - 64
+
+  ScalingConfigurationSecondsUntilAutoPause:
+    Type: Number
+    Default: 14400
+    AllowedValues:
+      - 300
+      - 900
+      - 3600
+      - 7200
+      - 14400
+      - 86400
+
+  EcsMinCapacity:
+    Type: Number
+    Default: 1
+
+  EcsMaxCapacity:
+    Type: Number
+    Default: 4
+
+  EcsTaskCpu:
+    Description: CPU Units to provision per ECS Container
+    Type: Number
+    Default: 1024
+    AllowedValues:
+      - 256
+      - 512
+      - 1024
+      - 2048
+      - 4096
+
+  EcsTaskMem:
+    Description: Memory to provision per ECS Container (MB)
+    Type: Number
+    Default: 2048
+    AllowedValues:
+      - 2048
+      - 4096
+
+  EcsInitialDesiredCapacity:
+    Description: Initial Desired number of ECS Containers to provision
+    Type: Number
+    Default: 1
+
+  EcsTargetCpuUtilization:
+    Description: Threshold to be reached for scaling in/out
+    Type: Number
+    Default: 50
+
+  SuspendAutoScaling:
+    Description: Suspend Auto Scaling for Maintanence
+    Type: String
+    Default: false
+
+  EcsCapacityProvider:
+    Description: Optional select Spot Fargate Tasks for Development Environments
+    Type: String
+    Default: FARGATE_SPOT
+    AllowedValues:
+      - FARGATE_SPOT
+      - FARGATE
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      TemplateURL: ./cfn-vpc-2azs.yaml
+
+  ACMCerts:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        ZoneName: !Ref Route53ZoneName
+        ECSDomainName: !Ref ECSDomain
+      TemplateURL: ./cfn-acm.yaml
+
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Vpc: !GetAtt VPC.Outputs.VpcId
+      TemplateURL: ./cfn-securitygroups.yaml
+
+  LoadBalancer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        CertificateArn: !GetAtt ACMCerts.Outputs.certificateArn
+        Vpc: !GetAtt VPC.Outputs.VpcId
+        Subnets: !Join
+          - ","
+          - - !GetAtt "VPC.Outputs.SubnetAPublic"
+            - !GetAtt "VPC.Outputs.SubnetBPublic"
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+        LoadBalancerScheme: "internet-facing"
+      TemplateURL: ./cfn-loadbalancer.yaml
+
+  IAMRoles:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./cfn-iamroles.yaml
+
+  DNSRecords:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        HostedZoneId: !Ref HostedZoneId
+        LoadBalancerHostedZoneId: !GetAtt LoadBalancer.Outputs.LoadBalancerHostedZoneId
+        LoadBalancerDns: !GetAtt LoadBalancer.Outputs.LoadBalancerDns
+        ECSDomain: !Ref ECSDomain
+      TemplateURL: ./cfn-dns-records.yaml
+
+  ECSCluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Subnets: !Join
+          - ","
+          - - !GetAtt "VPC.Outputs.SubnetAPublic"
+            - !GetAtt "VPC.Outputs.SubnetBPublic"
+        BastionHostSG: !GetAtt SecurityGroups.Outputs.BastionHostSG
+        InstanceProfile: !GetAtt IAMRoles.Outputs.EC2InstanceProfile
+        InstanceRole: !GetAtt IAMRoles.Outputs.EC2InstanceRole
+        EnvironmentName: !Ref EnvironmentName
+        SSHKeyPair: !Ref SSHKeyPair
+        RetentionDays: !Ref RetentionDays
+        EcsCapacityProvider: !Ref EcsCapacityProvider
+      TemplateURL: ./cfn-ecscluster.yaml
+
+  Database:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        DBUsername: !Ref DBUsernameParam
+        DBName: !Ref DBName
+        DBBackupRetentionPeriod: !Ref DBBackupRetentionPeriodParam
+        AppDBSubnetId: !Join
+          - ","
+          - - !GetAtt "VPC.Outputs.SubnetAPrivate"
+            - !GetAtt "VPC.Outputs.SubnetBPrivate"
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.MariaDBSG
+        ScalingConfigurationMinCapacity: !Ref ScalingConfigurationMinCapacity
+        ScalingConfigurationMaxCapacity: !Ref ScalingConfigurationMaxCapacity
+        ScalingConfigurationSecondsUntilAutoPause: !Ref ScalingConfigurationSecondsUntilAutoPause
+      TemplateURL: ./cfn-db.yaml
+
+  Nocodb:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        ECSCluster: !GetAtt ECSCluster.Outputs.Cluster
+        LogGroupName: !GetAtt ECSCluster.Outputs.LogGroupName
+        DesiredCount: !Ref EcsInitialDesiredCapacity
+        ContainerCpu: !Ref EcsTaskCpu
+        ContainerMemory: !Ref EcsTaskMem
+        ClusterRoleArn: !GetAtt IAMRoles.Outputs.ECSClusterRole
+        Subnets: !Join
+          - ","
+          - - !GetAtt "VPC.Outputs.SubnetAPublic"
+            - !GetAtt "VPC.Outputs.SubnetBPublic"
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.NocodbSG
+        ImageTag: !Ref ImageTag
+        TargetGroupArn: !GetAtt LoadBalancer.Outputs.TargetGroupArn
+        DBEndpoint:
+          !Join [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              !GetAtt Database.Outputs.DBSecrets,
+              ":SecretString:host}}",
+            ],
+          ]
+        DBUser:
+          !Join [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              !GetAtt Database.Outputs.DBSecrets,
+              ":SecretString:username}}",
+            ],
+          ]
+        DBPass:
+          !Join [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              !GetAtt Database.Outputs.DBSecrets,
+              ":SecretString:password}}",
+            ],
+          ]
+        DBName:
+          !Join [
+            "",
+            [
+              "{{resolve:secretsmanager:",
+              !GetAtt Database.Outputs.DBSecrets,
+              ":SecretString:dbname}}",
+            ],
+          ]
+        EcsCapacityProvider: !Ref EcsCapacityProvider
+      TemplateURL: ./cfn-nocodb.yaml
+
+  AutoScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MinCapacity: !Ref EcsMinCapacity
+      MaxCapacity: !Ref EcsMaxCapacity
+      ResourceId: !Join
+        - /
+        - - service
+          - !GetAtt ECSCluster.Outputs.Cluster
+          - !GetAtt Nocodb.Outputs.ServiceName
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt IAMRoles.Outputs.EcsAutoScalingRole
+      SuspendedState:
+        DynamicScalingInSuspended: !Ref SuspendAutoScaling
+        DynamicScalingOutSuspended: !Ref SuspendAutoScaling
+        ScheduledScalingSuspended: !Ref SuspendAutoScaling
+
+  AutoScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !GetAtt ECSCluster.Outputs.Cluster
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 10
+        ScaleOutCooldown: 10
+        TargetValue: !Ref EcsTargetCpuUtilization

@@ -1,0 +1,29 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Update DNS Reccords
+
+Parameters:
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+
+  LoadBalancerHostedZoneId:
+    Type: String
+
+  LoadBalancerDns:
+    Type: String
+
+  ECSDomain:
+    Type: String
+
+Resources:
+  RootRecord:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+        - Name: !Sub "${ECSDomain}"
+          Type: A
+          AliasTarget:
+            HostedZoneId: !Ref LoadBalancerHostedZoneId
+            DNSName: !Ref LoadBalancerDns

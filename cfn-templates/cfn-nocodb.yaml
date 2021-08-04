@@ -1,0 +1,133 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: NOcodb Container Image ECS Task and Service Definition
+
+Parameters:
+  ECSCluster:
+    Type: String
+  DesiredCount:
+    Type: Number
+    Default: 2
+  ContainerCpu:
+    Type: Number
+    Default: 1024
+  ContainerMemory:
+    Type: Number
+    Default: 2048
+  ClusterRoleArn:
+    Type: String
+  TargetGroupArn:
+    Type: String
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  SecurityGroup:
+    Description: Security group
+    Type: AWS::EC2::SecurityGroup::Id
+  ImageTag:
+    Description: Container Image Tag
+    Type: String
+  LogGroupName:
+    Description: Log Group Name
+    Type: String
+
+  DBEndpoint:
+    Type: String
+    Description: endpoint of DB
+    NoEcho: false
+
+  DBUser:
+    Type: String
+    Description: Username of main db
+
+  DBPass:
+    Type: String
+    Description: Password for DB
+    NoEcho: true
+
+  DBName:
+    Type: String
+    Description: Database name
+
+  EcsCapacityProvider:
+    Description: Optional select Spot Fargate Tasks for Development Environments
+    Type: String
+    Default: FARGATE_SPOT
+    AllowedValues:
+      - FARGATE_SPOT
+      - FARGATE
+
+Resources:
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - "FARGATE"
+      ExecutionRoleArn: !Ref ClusterRoleArn
+      TaskRoleArn: !Ref ClusterRoleArn
+      ContainerDefinitions:
+        - Name: "nocodb"
+          Image: !Sub "nocodb/nocodb:${ImageTag}"
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+              Protocol: tcp
+            - ContainerPort: 8081
+              HostPort: 8081
+              Protocol: tcp
+            - ContainerPort: 8082
+              HostPort: 8082
+              Protocol: tcp
+            - ContainerPort: 8083
+              HostPort: 8083
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: "awslogs"
+            Options:
+              awslogs-region: !Sub ${AWS::Region}
+              awslogs-group: !Ref LogGroupName
+              awslogs-stream-prefix: "nocodb"
+          Environment:
+            - Name: NC_DB
+              Value: !Sub "pg://${DBEndpoint}:5432?u${DBUser}&p=${DBPass}&d=${DBName}"
+
+  ServiceDefinition:
+    Type: AWS::ECS::Service
+    Properties:
+      CapacityProviderStrategy:
+        - Base: 1
+          CapacityProvider: !Ref EcsCapacityProvider
+          Weight: 1
+      Cluster: !Ref ECSCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      DesiredCount: !Ref DesiredCount
+      EnableExecuteCommand: true
+      TaskDefinition: !Ref TaskDefinition
+      PlatformVersion: "1.4.0"
+      LoadBalancers:
+        - ContainerName: "nocodb"
+          ContainerPort: 8080
+          TargetGroupArn: !Ref TargetGroupArn
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref SecurityGroup
+          Subnets:
+            - !Select [0, !Ref Subnets]
+            - !Select [1, !Ref Subnets]
+      PropagateTags: SERVICE
+
+Outputs:
+  ServiceNameArn:
+    Description: Service Arn
+    Value: !Ref ServiceDefinition
+
+  ServiceName:
+    Description: ServiceName
+    Value: !GetAtt ServiceDefinition.Name

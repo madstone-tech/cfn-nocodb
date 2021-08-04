@@ -1,0 +1,197 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Cloudformation Template to create Aurora-Serverless instance"
+
+Parameters:
+  DBUsername:
+    Default: nocodbuser
+    NoEcho: "false"
+    Description: The database admin account username
+    Type: String
+    MinLength: "1"
+    MaxLength: "16"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+
+  DBName:
+    Description: Name of the database
+    Type: String
+    Default: nocodb
+
+  DBBackupRetentionPeriod:
+    Description: "The number of days to keep snapshots of the database."
+    Type: Number
+    Default: 7
+
+  AppDBSubnetId:
+    Description: SubnetId for database
+    Type: CommaDelimitedList
+
+  SecurityGroup:
+    Description: SecurityGroup
+    Type: AWS::EC2::SecurityGroup::Id
+
+  ScalingConfigurationMaxCapacity:
+    Type: Number
+    Default: 4
+    AllowedValues:
+      - 2
+      - 4
+      - 8
+      - 16
+      - 32
+      - 64
+
+  ScalingConfigurationMinCapacity:
+    Type: Number
+    Default: 1
+    AllowedValues:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 32
+      - 64
+
+  ScalingConfigurationSecondsUntilAutoPause:
+    Type: Number
+    Default: 3600
+    AllowedValues:
+      - 300
+      - 900
+      - 3600
+      - 7200
+      - 14400
+      - 86400
+
+  EngineType:
+    Type: String
+    Description: Aurora Engine type
+    Default: aurora-postgresql
+    AllowedValues:
+      - aurora
+      - aurora-mysql
+      - aurora-postgresql
+
+  EngineMode:
+    Type: String
+    Description: Aurora Engine Mode
+    Default: serverless
+    AllowedValues:
+      - serverless
+      - provisioned
+      - parallelquery
+      - global
+      - multimaster
+
+  EngineVersion:
+    Type: String
+    Description: Aurora Engine Version
+    Default: "12.6"
+    AllowedValues:
+      - "12.6"
+      - "12.4"
+      - "11.11"
+      - "11.9"
+      - "11.8"
+      - "11.7"
+      - "11.6"
+      - "11.4"
+      - "10.16"
+      - "10.14"
+      - "10.13"
+      - "10.12"
+      - "10.11"
+      - "10.7"
+      - "10.6"
+      - "10.5"
+      - "10.4"
+
+Resources:
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      Tags:
+        - Key: stack
+          Value: !Ref AWS::StackName
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-DBSubnetGroup"
+      DBSubnetGroupDescription: "DB subnet group"
+      SubnetIds:
+        - !Select [0, !Ref AppDBSubnetId]
+        - !Select [1, !Ref AppDBSubnetId]
+
+  DBSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: dynamically generated secret password
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+
+  MasterDB:
+    Type: "AWS::RDS::DBCluster"
+    Properties:
+      BackupRetentionPeriod: !Ref DBBackupRetentionPeriod
+      DatabaseName: !Ref DBName
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DeletionProtection: true
+      EnableHttpEndpoint: false
+      Engine: !Ref EngineType
+      EngineMode: !Ref EngineMode
+      EngineVersion: !Ref EngineVersion
+      MasterUsername:
+        !Join [
+          "",
+          [
+            "{{resolve:secretsmanager:",
+            !Ref DBSecrets,
+            ":SecretString:username}}",
+          ],
+        ]
+      MasterUserPassword:
+        !Join [
+          "",
+          [
+            "{{resolve:secretsmanager:",
+            !Ref DBSecrets,
+            ":SecretString:password}}",
+          ],
+        ]
+      VpcSecurityGroupIds:
+        - !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-DBMaster"
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: !Ref ScalingConfigurationMaxCapacity
+        MinCapacity: !Ref ScalingConfigurationMinCapacity
+        SecondsUntilAutoPause: !Ref ScalingConfigurationSecondsUntilAutoPause
+
+  SecretRDSInstanceAttachment:
+    Type: "AWS::SecretsManager::SecretTargetAttachment"
+    Properties:
+      SecretId: !Ref DBSecrets
+      TargetId: !Ref MasterDB
+      TargetType: AWS::RDS::DBCluster
+
+Outputs:
+  DBAddress:
+    Description: address database endpoint
+    Value: !GetAtt
+      - MasterDB
+      - Endpoint.Address
+
+  DBPort:
+    Description: address database endpoint
+    Value: !GetAtt
+      - MasterDB
+      - Endpoint.Port
+
+  DBSecrets:
+    Description: Arn of secrets
+    Value: !Ref DBSecrets

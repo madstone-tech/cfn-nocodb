@@ -1,0 +1,216 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  IAM Roles policies
+
+Resources:
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+                - "ecs.amazonaws.com"
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+        - arn:aws:iam::aws:policy/AWSCodeCommitReadOnly
+  #        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref EC2InstanceRole
+
+  ECSClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs.amazonaws.com"
+                - "ec2.amazonaws.com"
+                - "ecs-tasks.amazonaws.com"
+                - "application-autoscaling.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: !Sub "${AWS::StackName}-IAM-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ecs:*"
+                  - "ecs-tasks:*"
+                  - "ec2:*"
+                  - "elasticloadbalancing:*"
+                  - "ecr:*"
+                  - "cloudwatch:*"
+                  - "s3:*"
+                  - "rds:*"
+                  - "sqs:*"
+                  - "sns:*"
+                  - "logs:*"
+                  - "ssm:*"
+                Resource: "*"
+
+  EcsDeployExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - ecs:*
+                  - ecr:*
+                  - iam:*
+                  - ec2:Describe*
+                  - s3:*
+                  - ssm:*
+
+  EcsAutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole"
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - ecr:GetAuthorizationToken
+                  - ecr:GetRepositoryPolicy
+                  - ecr:SetRepositoryPolicy
+                  - ssm:*
+                  - s3:*
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:PutImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecs:*
+                  - iam:PassRole
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - ecs:*
+                  - ecr:DescribeImages
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - cloudformation:*
+                  - iam:PassRole
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:UploadArchive
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:CancelUploadArchive
+                  - ssm:*
+
+Outputs:
+  EC2InstanceProfile:
+    Description: "Instance profile for EC2"
+    Value: !Ref EC2InstanceProfile
+
+  EC2InstanceRole:
+    Description: "EC2 Instance Role"
+    Value: !GetAtt EC2InstanceRole.Arn
+
+  ECSClusterRole:
+    Description: "ECS Cluster Role"
+    Value: !GetAtt ECSClusterRole.Arn
+
+  EcsAutoScalingRole:
+    Description: "ECS AutoScaling Role"
+    Value: !GetAtt EcsAutoScalingRole.Arn
+
+  EcsDeployExecutionRoleArn:
+    Description: "CloudFormation ECS deployment execution role"
+    Value: !GetAtt EcsDeployExecutionRole.Arn
+
+  CodeBuildServiceRoleArn:
+    Description: "Code build service role "
+    Value: !GetAtt CodeBuildServiceRole.Arn
+
+  CodePipelineServiceRoleArn:
+    Description: "Code pipeline Service role"
+    Value: !GetAtt CodePipelineServiceRole.Arn

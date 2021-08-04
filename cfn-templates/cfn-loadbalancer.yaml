@@ -1,0 +1,116 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Load Balancer for Web or API
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: "HTTPS certificate ARN to attach to the load balancer"
+    AllowedPattern: ^NA|(arn:aws:acm:)([a-zA-Z0-9/:-])*([a-zA-Z0-9])$
+    Default: "NA"
+  Vpc:
+    Description: VPC to attach the security groups
+    Type: String
+    AllowedPattern: "^vpc-[a-zA-Z0-9]+$"
+    MinLength: 1
+  Subnets:
+    Description: Subnets to attach to the load balancer
+    Type: List<AWS::EC2::Subnet::Id>
+  SecurityGroup:
+    Description: Security group to attach to the load balancer
+    Type: AWS::EC2::SecurityGroup::Id
+  LoadBalancerScheme:
+    Type: String
+    Default: "internet-facing"
+    MinLength: 1
+
+Resources:
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: !Ref LoadBalancerScheme
+      Subnets:
+        - !Select [0, !Ref Subnets]
+        - !Select [1, !Ref Subnets]
+      SecurityGroups:
+        - !Ref SecurityGroup
+
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: "443"
+            Protocol: "HTTPS"
+            Query: "#{query}"
+            StatusCode: HTTP_301
+          Type: redirect
+
+  LoadBalancerListenerSsl:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: LoadBalancer
+    Properties:
+      VpcId: !Ref Vpc
+      Protocol: HTTP
+      Matcher:
+        HttpCode: "200-399"
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /dashboard
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 5
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+      Port: 8080
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "30"
+
+Outputs:
+  TargetGroupArn:
+    Description: "Load balancer Target Group ARN"
+    Value: !Ref TargetGroup
+
+  TargetGroupName:
+    Description: "Targetgroup Name"
+    Value: !GetAtt TargetGroup.TargetGroupFullName
+
+  LoadBalancerName:
+    Description: "LoadBalanver Name"
+    Value: !GetAtt LoadBalancer.LoadBalancerFullName
+
+  LoadBalancerDns:
+    Description: URL of the cluster load balancer.
+    Value: !GetAtt LoadBalancer.DNSName
+
+  LoadBalancerUrl:
+    Description: URL of the cluster load balancer.
+    Value: !Sub https://${LoadBalancer.DNSName}
+
+  LoadBalancerArn:
+    Description: ARN of the cluster load balancer.
+    Value: !Ref LoadBalancer
+
+  LoadBalancerHostedZoneId:
+    Description: LoadBalancer Hosted Zone Id
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID

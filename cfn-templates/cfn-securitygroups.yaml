@@ -1,0 +1,76 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create Security Groups
+
+Parameters:
+  Vpc:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for security groups
+
+Resources:
+  BastionHostSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "SSH"
+      VpcId: !Ref Vpc
+
+  LoadBalancerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "nocodb-elb"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+
+  NocodbSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Nocodb SG access to Container"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - FromPort: 8080
+          IpProtocol: tcp
+          ToPort: 8083
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+
+  PostgresDBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Mariadb SG"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - FromPort: 5432
+          IpProtocol: tcp
+          ToPort: 5432
+          SourceSecurityGroupId:
+            Ref: NocodbSG
+        - FromPort: 5432
+          IpProtocol: tcp
+          ToPort: 5432
+          SourceSecurityGroupId:
+            Ref: BastionHostSG
+
+Outputs:
+  BastionHostSG:
+    Description: "EC2 SG"
+    Value: !GetAtt BastionHostSG.GroupId
+
+  LoadBalancerSecurityGroup:
+    Description: "LoadBalancer SG"
+    Value: !Ref LoadBalancerSecurityGroup
+
+  NocodbSG:
+    Description: "Nocodb SG"
+    Value: !GetAtt NocodbSG.GroupId
+
+  PostgresDBSG:
+    Description: "PostgresSB SG"
+    Value: !GetAtt PostgresDBSG.GroupId
