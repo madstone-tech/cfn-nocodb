@@ -81,7 +81,7 @@ Resources:
       HealthyThresholdCount: 5
       UnhealthyThresholdCount: 2
       TargetType: ip
-      Port: 8080
+      Port: 3000
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: "30"

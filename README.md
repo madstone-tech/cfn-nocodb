@@ -22,4 +22,10 @@ aws cloudformation package --template-file cfn-templates/cfn-main.yaml --s3-buck
 
 replace `parameters/cfn-parameters.json` with the parameters from your account.
 
+### Deploy Stack
+
+#### Deploy via cli
+
+```bash
+aws cloudformation deploy --template-file cfn-deploy-nocodb.yaml --stack-name <YOUR STACK NAME>
 [awsclilink]: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html

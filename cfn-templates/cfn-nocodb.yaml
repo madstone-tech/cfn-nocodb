@@ -92,7 +92,7 @@ Resources:
               awslogs-stream-prefix: "nocodb"
           Environment:
             - Name: NC_DB
-              Value: !Sub "pg://${DBEndpoint}:5432?u${DBUser}&p=${DBPass}&d=${DBName}"
+              Value: !Sub "pg://${DBEndpoint}:5432?u=${DBUser}&p=${DBPass}&d=${DBName}"
 
   ServiceDefinition:
     Type: AWS::ECS::Service

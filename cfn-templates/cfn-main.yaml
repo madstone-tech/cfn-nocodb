@@ -70,7 +70,7 @@ Parameters:
 
   ScalingConfigurationMaxCapacity:
     Type: Number
-    Default: 4
+    Default: 8
     AllowedValues:
       - 2
       - 4
@@ -81,9 +81,8 @@ Parameters:
 
   ScalingConfigurationMinCapacity:
     Type: Number
-    Default: 1
+    Default: 2
     AllowedValues:
-      - 1
       - 2
       - 4
       - 8
