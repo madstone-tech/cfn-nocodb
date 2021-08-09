@@ -107,6 +107,7 @@ Resources:
         MinimumHealthyPercent: 0
       DesiredCount: !Ref DesiredCount
       EnableExecuteCommand: true
+      HealthCheckGracePeriodSeconds: 300
       TaskDefinition: !Ref TaskDefinition
       PlatformVersion: "1.4.0"
       LoadBalancers:
