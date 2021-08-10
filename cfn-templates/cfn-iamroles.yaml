@@ -4,6 +4,15 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   IAM Roles policies
 
+Parameters:
+  EFSId:
+    Type: String
+    Description: The Amazon EFS file system ID to use
+
+  EFSIdAccessPoint:
+    Type: String
+    Description: EFS Access point
+
 Resources:
   EC2InstanceRole:
     Type: AWS::IAM::Role
@@ -49,6 +58,9 @@ Resources:
                 - "application-autoscaling.amazonaws.com"
             Action:
               - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole"
       Policies:
         - PolicyName: !Sub "${AWS::StackName}-IAM-policy"
           PolicyDocument:
@@ -69,7 +81,12 @@ Resources:
                   - "logs:*"
                   - "ssm:*"
                 Resource: "*"
-
+              - Effect: Allow
+                Action:
+                  - "elasticfilesystem:*"
+                Resource:
+                  - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/${EFSId}
+                  - !Sub arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:access-point/${EFSIdAccessPoint}
   EcsDeployExecutionRole:
     Type: AWS::IAM::Role
     Properties:
