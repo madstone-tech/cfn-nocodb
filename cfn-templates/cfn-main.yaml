@@ -150,6 +150,26 @@ Parameters:
     AllowedValues:
       - FARGATE_SPOT
       - FARGATE
+
+  BackupPolicyParam:
+    Description: Backup Policy Value
+    Type: String
+    Default: ENABLED
+    AllowedValues:
+      - "ENABLED"
+      - "DISABLED"
+
+  EFSLifecyclePolicy:
+    Description: Lifecycle Policy to transition to IA Storage Class
+    Type: String
+    Default: AFTER_30_DAYS
+    AllowedValues:
+      - "AFTER_14_DAYS"
+      - "AFTER_30_DAYS"
+      - "AFTER_60_DAYS"
+      - "AFTER_7_DAYS"
+      - "AFTER_90_DAYS"
+
 Resources:
   VPC:
     Type: AWS::CloudFormation::Stack
@@ -173,6 +193,20 @@ Resources:
         Vpc: !GetAtt VPC.Outputs.VpcId
       TemplateURL: ./cfn-securitygroups.yaml
 
+  EFS:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        Subnets: !Join
+          - ","
+          - - !GetAtt "VPC.Outputs.SubnetAPrivate"
+            - !GetAtt "VPC.Outputs.SubnetBPrivate"
+        SecurityGroup: !GetAtt SecurityGroups.Outputs.EFSSG
+        EFSLifecyclePolicy: !Ref EFSLifecyclePolicy
+        BackupPolicyParam: !Ref BackupPolicyParam
+        EnvironmentName: !Ref EnvironmentName
+      TemplateURL: ./cfn-efs.yaml
+
   LoadBalancer:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -190,6 +224,9 @@ Resources:
   IAMRoles:
     Type: AWS::CloudFormation::Stack
     Properties:
+      Parameters:
+        EFSId: !GetAtt EFS.Outputs.EFSFileSystemId
+        EFSIdAccessPoint: !GetAtt EFS.Outputs.EFSAccessPoint1Id
       TemplateURL: ./cfn-iamroles.yaml
 
   DNSRecords:
@@ -216,6 +253,7 @@ Resources:
         EnvironmentName: !Ref EnvironmentName
         SSHKeyPair: !Ref SSHKeyPair
         RetentionDays: !Ref RetentionDays
+        EFSId: !GetAtt EFS.Outputs.EFSFileSystemId
         EcsCapacityProvider: !Ref EcsCapacityProvider
       TemplateURL: ./cfn-ecscluster.yaml
 
@@ -290,6 +328,8 @@ Resources:
             ],
           ]
         EcsCapacityProvider: !Ref EcsCapacityProvider
+        EFSId: !GetAtt EFS.Outputs.EFSFileSystemId
+        EFSIdAccessPoint: !GetAtt EFS.Outputs.EFSAccessPoint1Id
       TemplateURL: ./cfn-nocodb.yaml
 
   AutoScalingTarget:

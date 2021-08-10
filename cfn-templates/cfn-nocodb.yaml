@@ -35,6 +35,14 @@ Parameters:
     Description: endpoint of DB
     NoEcho: false
 
+  EFSId:
+    Type: String
+    Description: The Amazon EFS file system ID to use
+
+  EFSIdAccessPoint:
+    Type: String
+    Description: EFS Access point
+
   DBUser:
     Type: String
     Description: Username of main db
@@ -71,6 +79,9 @@ Resources:
         - Name: "nocodb"
           Image: !Sub "nocodb/nocodb:${ImageTag}"
           Essential: true
+          MountPoints:
+            - ContainerPath: "/srv/app/data"
+              SourceVolume: data
           PortMappings:
             - ContainerPort: 8080
               HostPort: 8080
@@ -93,6 +104,14 @@ Resources:
           Environment:
             - Name: NC_DB
               Value: !Sub "pg://${DBEndpoint}:5432?u=${DBUser}&p=${DBPass}&d=${DBName}"
+      Volumes:
+        - Name: data
+          EFSVolumeConfiguration:
+            FilesystemId: !Ref EFSId
+            AuthorizationConfig:
+              AccessPointId: !Ref EFSIdAccessPoint
+              IAM: ENABLED
+            TransitEncryption: ENABLED
 
   ServiceDefinition:
     Type: AWS::ECS::Service

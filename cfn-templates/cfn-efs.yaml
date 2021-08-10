@@ -1,0 +1,114 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Template to create EFS for  cluster
+
+Parameters:
+  Subnets:
+    Description: Subnets to attach to the EFS
+    Type: List<AWS::EC2::Subnet::Id>
+  SecurityGroup:
+    Description: Security group to attach to the EFS
+    Type: AWS::EC2::SecurityGroup::Id
+  EFSLifecyclePolicy:
+    Description: Lifecycle Policy to transition to IA Storage Class
+    Type: String
+    Default: AFTER_30_DAYS
+    AllowedValues:
+      - "AFTER_14_DAYS"
+      - "AFTER_30_DAYS"
+      - "AFTER_60_DAYS"
+      - "AFTER_7_DAYS"
+      - "AFTER_90_DAYS"
+  BackupPolicyParam:
+    Description: Backup Policy Value
+    Type: String
+    Default: ENABLED
+    AllowedValues:
+      - "ENABLED"
+      - "DISABLED"
+
+  EnvironmentName:
+    Type: String
+
+Mappings:
+  Config:
+    Container:
+      Uid: 33
+      Gid: 0
+      Permission: "0777"
+
+Resources:
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      BackupPolicy:
+        Status: !Ref BackupPolicyParam
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      FileSystemTags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-efs"
+      LifecyclePolicies:
+        - TransitionToIA: !Ref EFSLifecyclePolicy
+
+  EFSMountTargetA:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: EFSFileSystem
+      SecurityGroups:
+        - !Ref SecurityGroup
+      SubnetId: !Select [0, !Ref Subnets]
+
+  EFSMountTargetB:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: EFSFileSystem
+      SecurityGroups:
+        - !Ref SecurityGroup
+      SubnetId: !Select [1, !Ref Subnets]
+
+  EFSAccessPoint1:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      FileSystemId:
+        Ref: EFSFileSystem
+      RootDirectory:
+        Path: !Sub /${EnvironmentName}/app
+        CreationInfo:
+          OwnerUid: !FindInMap [Config, Container, Uid]
+          OwnerGid: !FindInMap [Config, Container, Gid]
+          Permissions: !FindInMap [Config, Container, Permission]
+Outputs:
+  EFSFileSystemId:
+    Value: !Ref EFSFileSystem
+    Description: EFS FileSystem ID
+    Export:
+      Name: !Sub "${AWS::StackName}-EFSId"
+
+  EFSMountTargetAId:
+    Value: !Ref EFSMountTargetA
+    Description: MountTargetA
+    Export:
+      Name: !Sub "${AWS::StackName}-EFSMountA"
+
+  EFSMountTargetBId:
+    Value: !Ref EFSMountTargetB
+    Description: MountTargetB
+    Export:
+      Name: !Sub "${AWS::StackName}-EFSMountB"
+
+  EFSAccessPoint1Id:
+    Value: !GetAtt EFSAccessPoint1.AccessPointId
+    Description: ResourceId of Accesspoint
+    Export:
+      Name: !Sub "${AWS::StackName}-EFSAccessPoint1Id"
+
+  EFSAccessPoint1Arn:
+    Value: !GetAtt EFSAccessPoint1.Arn
+    Description: Arn of Accesspoint
+    Export:
+      Name: !Sub "${AWS::StackName}-EFSAccessPoint1Arn"

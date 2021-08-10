@@ -34,6 +34,10 @@ Parameters:
   EnvironmentName:
     Type: String
 
+  EFSId:
+    Type: String
+    Description: The Amazon EFS file system ID to use
+
   LatestAmiId:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
@@ -134,6 +138,7 @@ Resources:
           default:
             - "awslogs"
             - "config"
+            - "mountfs"
         awslogs:
           packages:
             yum:
@@ -302,6 +307,25 @@ Resources:
                 files:
                   - /etc/cfn/cfn-hup.conf
                   - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+        mountfs:
+          files:
+            /etc/systemd/system/mnt-efs.mount:
+              content: !Sub |
+                [Unit]
+                Description = Mount EFS Share
+                Wants=network.target
+                After=syslog.target network-online.target
+                [Mount]
+                What=${EFSId}:/
+                Where=/mnt/efs
+                Type=efs
+                Options=defaults
+                [Install]
+                WantedBy=multi-user.target
+          commands:
+            00-enable-systemd.mount:
+              command: systemctl enable mnt-efs.mount
+
     Properties:
       LaunchTemplateData:
         IamInstanceProfile:
@@ -315,15 +339,19 @@ Resources:
         SecurityGroupIds:
           - !Ref BastionHostSG
         UserData:
-          Fn::Base64:
-            Fn::Sub: |
-              #!/bin/bash
-              yum install -y aws-cfn-bootstrap
-              /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHostLaunchTemplate 
-              echo "before-cfn-signal - $(date)" >> /root/init.log
-              /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHostAutoScalingGroup
-              echo "after-cfn-signal - $(date)" >> /root/init.log
-              pip3 install ansible
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum install -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHostLaunchTemplate 
+            echo "before-cfn-signal - $(date)" >> /root/init.log
+            mkdir /mnt/efs
+            echo "mounting EFS - $(date)" >> /root/init.log
+            systemctl enable mnt-efs.mount
+            systemctl start mnt-efs.mount
+            echo "mounted ${EFSId} EFS - $(date)" >> /root/init.log
+            /opt/aws/bin/cfn-signal -e 0 --region ${AWS::Region} --stack ${AWS::StackName} --resource BastionHostAutoScalingGroup
+            echo "after-cfn-signal - $(date)" >> /root/init.log
+            pip3 install ansible
 
 Outputs:
   Cluster:

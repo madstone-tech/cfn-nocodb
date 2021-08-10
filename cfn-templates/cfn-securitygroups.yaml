@@ -58,6 +58,23 @@ Resources:
           SourceSecurityGroupId:
             Ref: BastionHostSG
 
+  EFSSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "EFS Security Group"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - FromPort: 2049
+          IpProtocol: tcp
+          ToPort: 2049
+          SourceSecurityGroupId:
+            Ref: NocodbSG
+        - FromPort: 2049
+          IpProtocol: tcp
+          ToPort: 2049
+          SourceSecurityGroupId:
+            Ref: BastionHostSG
+
 Outputs:
   BastionHostSG:
     Description: "EC2 SG"
@@ -74,3 +91,7 @@ Outputs:
   PostgresDBSG:
     Description: "PostgresSB SG"
     Value: !GetAtt PostgresDBSG.GroupId
+
+  EFSSG:
+    Description: "EFS SG"
+    Value: !GetAtt EFSSG.GroupId
