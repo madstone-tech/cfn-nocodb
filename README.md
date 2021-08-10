@@ -15,7 +15,7 @@ aws s3 mb s3://[bucketname]
 ### Package the Cloudformation Package
 
 ```bash
-aws cloudformation package --template-file cfn-templates/cfn-main.yaml --s3-bucket [bucketname] --output-template-file ../cfn-deploy-nocodb.yaml
+aws cloudformation package --template-file cfn-templates/cfn-main.yaml --s3-bucket [bucketname] --output-template-file cfn-deploy.yaml
 ```
 
 ### Update your paramaters
@@ -27,9 +27,7 @@ replace `parameters/cfn-parameters.json` with the parameters from your account.
 #### Deploy via cli
 
 ```bash
-aws cloudformation deploy --template-file cfn-deploy-nocodb.yaml --stack-name <YOUR STACK NAME> --parameter-overrides file://parameters/cfn-parameters.json --capabilities CAPABILITY_IAM
+aws cloudformation deploy --template-file cfn-deploy.yaml --stack-name <YOUR STACK NAME> --parameter-overrides file://parameters/cfn-parameters.json --capabilities CAPABILITY_IAM
 ```
-
-### Deploy via AWS Console
 
 [awsclilink]: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html

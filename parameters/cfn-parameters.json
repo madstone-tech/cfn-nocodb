@@ -7,7 +7,6 @@
         "SSHKeyPair": "REPLACE",
         "DBUsernameParam": "nocodbuser",
         "DBBackupRetentionPeriodParam": "7",
-        "NonceSalt": "REPLACE",
         "DBName": "nocodb",
         "ImageTag": "latest"
     },
