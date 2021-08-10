@@ -113,7 +113,7 @@ Resources:
         SecretStringTemplate: !Sub '{"username": "${DBUsername}"}'
         GenerateStringKey: "password"
         PasswordLength: 16
-        ExcludeCharacters: '"@/\'
+        ExcludeCharacters: '"@/\&$#<>'
 
   MasterDB:
     Type: "AWS::RDS::DBCluster"
