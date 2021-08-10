@@ -1,0 +1,16 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "S3: CFN template to create the S3 bucket needed to deploy Nested Stacks with CloudFormation"
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+
+Outputs:
+  S3BucketName:
+    Value: !Ref S3Bucket
+    Description: Name of the S3 bucket
+
+  S3BucketArn:
+    Value: !GetAtt S3Bucket.Arn
+    Description: Arn for S3 Bucket

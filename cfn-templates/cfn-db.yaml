@@ -114,6 +114,7 @@ Resources:
         GenerateStringKey: "password"
         PasswordLength: 16
         ExcludeCharacters: '"@/\&$#<>'
+        ExcludePunctuation: true
 
   MasterDB:
     Type: "AWS::RDS::DBCluster"

@@ -221,10 +221,16 @@ Resources:
         LoadBalancerScheme: "internet-facing"
       TemplateURL: ./cfn-loadbalancer.yaml
 
+  S3Bucket:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./cfn-s3buckets.yaml
+
   IAMRoles:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
+        S3Bucket: !GetAtt S3Bucket.Outputs.S3BucketArn
         EFSId: !GetAtt EFS.Outputs.EFSFileSystemId
         EFSIdAccessPoint: !GetAtt EFS.Outputs.EFSAccessPoint1Id
       TemplateURL: ./cfn-iamroles.yaml

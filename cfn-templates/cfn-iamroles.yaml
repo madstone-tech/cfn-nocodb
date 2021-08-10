@@ -13,6 +13,9 @@ Parameters:
     Type: String
     Description: EFS Access point
 
+  S3Bucket:
+    Type: String
+
 Resources:
   EC2InstanceRole:
     Type: AWS::IAM::Role
@@ -203,6 +206,37 @@ Resources:
                   - codecommit:CancelUploadArchive
                   - ssm:*
 
+  IAMUserId:
+    Type: AWS::IAM::User
+
+  UserGroup:
+    Type: AWS::IAM::Group
+
+  UsersToGroup:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref UserGroup
+      Users:
+        - !Ref IAMUserId
+
+  UserPolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub "${AWS::StackName}_useraccesstos3"
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: "s3:*"
+            Resource:
+              - !Sub "${S3Bucket}/*"
+      Groups:
+        - !Ref UserGroup
+
+  AccessKeys:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref IAMUserId
+
 Outputs:
   EC2InstanceProfile:
     Description: "Instance profile for EC2"
@@ -231,3 +265,11 @@ Outputs:
   CodePipelineServiceRoleArn:
     Description: "Code pipeline Service role"
     Value: !GetAtt CodePipelineServiceRole.Arn
+
+  AccessKeyID:
+    Value: !Ref AccessKeys
+    Description: AWSAccessKeyId for User
+
+  SecretKey:
+    Value: !GetAtt AccessKeys.SecretAccessKey
+    Description: AWSSecretAccessKey for User
