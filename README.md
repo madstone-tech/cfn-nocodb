@@ -1,4 +1,4 @@
-# Deploy NocodB on AWS via Cloudformation
+# Deploy NocoDB on AWS 100% Serverless via Cloudformation
 
 ## Steps
 
@@ -9,13 +9,13 @@ Install [AWS CLI][awsclilink]
 ### Create an S3 bucket to upload the template artifacts
 
 ```bash
-aws s3 mb s3://[bucketname]
+aws s3 mb s3://<YOUR_UNIQUE_BUCKET_NAME>
 ```
 
 ### Package the Cloudformation Package
 
 ```bash
-aws cloudformation package --template-file cfn-templates/cfn-main.yaml --s3-bucket [bucketname] --output-template-file cfn-deploy.yaml
+aws cloudformation package --template-file cfn-templates/cfn-main.yaml --s3-bucket <YOUR_UNIQUE_BUCKET_NAME> --output-template-file cfn-deploy.yaml
 ```
 
 ### Update your paramaters
